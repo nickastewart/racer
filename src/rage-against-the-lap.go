@@ -26,6 +26,8 @@ func main() {
 		log.Panic(err.Error())
 	}
 
+	fmt.Println(m.Header.Get("Subject"))
+
 	buf := new(strings.Builder)
 
 	_, err = io.Copy(buf, m.Body)
@@ -62,17 +64,19 @@ func main() {
 	var driverInfoHtml []*html.Node = searchHtml(tables[0], "tr", []*html.Node{})
 
 	var driverInfo DriverInfo = DriverInfo{
-		Name:     extractTextIter(driverInfoHtml[3])[1],
-		Pos:      stripPosition(extractTextIter(driverInfoHtml[4])[2]),
-		RaceType: extractTextIter(driverInfoHtml[6])[1],
+		Name: extractTextIter(driverInfoHtml[3])[1],
 	}
 
-	fmt.Println(driverInfo)
+	var raceInfo RaceInfo = RaceInfo{
+		Location: getLocationFromSubject(m),
+		Position: stripPosition(extractTextIter(driverInfoHtml[4])[2]),
+		RaceType: extractTextIter(driverInfoHtml[6])[1],
+	}
 
 	var raceData []RaceData
 
 	for _, row := range searchHtml(tables[2], "tr", []*html.Node{}) {
-		if extractTextIter(row)[0] == driverInfo.Pos {
+		if extractTextIter(row)[0] == raceInfo.Position {
 			data := RaceData{
 				Pos:    extractTextIter(row)[0],
 				Kart:   extractTextIter(row)[1],
@@ -97,9 +101,20 @@ func main() {
 		}
 
 	}
+
+	fmt.Println(driverInfo)
+	fmt.Println(raceInfo)
 	for _, data := range raceData {
 		fmt.Println(data)
 	}
+}
+
+func getLocationFromSubject(m *mail.Message) string {
+	var subjectLine = m.Header.Get("Subject")
+	if strings.Contains(subjectLine, "Milton Keynes") {
+		return "Milton Keynes"
+	}
+	return "Unrecognised"
 }
 
 func searchHtml(n *html.Node, term string, result []*html.Node) []*html.Node {
@@ -142,7 +157,6 @@ func extractTextIter(n *html.Node) []string {
 
 func stripPosition(position string) string {
 	for index, char := range position {
-		fmt.Println(unicode.IsDigit(char))
 		if !unicode.IsDigit(char) {
 			return position[:index]
 		}
@@ -164,4 +178,10 @@ type DriverInfo struct {
 	Name     string
 	Pos      string
 	RaceType string
+}
+
+type RaceInfo struct {
+	Location string
+	RaceType string
+	Position string
 }
