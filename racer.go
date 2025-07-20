@@ -13,7 +13,7 @@ import (
 	"golang.org/x/net/html"
 )
 
-func main() {
+func parse() {
 	file, err := os.Open("results/race-result.eml")
 
 	if err != nil {
