@@ -1,26 +1,25 @@
-package main
+package parser 
 
 import (
 	"bufio"
-	"fmt"
 	"io"
 	"log"
 	"net/mail"
 	"os"
 	"strings"
 	"unicode"
-
+	"bytes"
 	"golang.org/x/net/html"
 )
 
-func parse() {
-	file, err := os.Open("results/race-result.eml")
+func Parse(path string) Event {
+	data, err := os.ReadFile(path)
 
 	if err != nil {
 		log.Panic(err.Error())
 	}
 
-	message, err := mail.ReadMessage(file)
+	message, err := mail.ReadMessage(bytes.NewReader(data))
 
 	if err != nil {
 		log.Panic(err.Error())
@@ -38,7 +37,7 @@ func parse() {
 
 	var html string = getHtml(body)
 	var event Event = parseEvent(html, message.Header.Get("Subject"))
-	fmt.Println(event)
+	return event
 }
 
 func getHtml(data string) string {
