@@ -14,23 +14,21 @@ import (
 )
 
 func main() {
-	file, err := os.Open("race-result.eml")
+	file, err := os.Open("results/race-result.eml")
 
 	if err != nil {
 		log.Panic(err.Error())
 	}
 
-	m, err := mail.ReadMessage(file)
+	message, err := mail.ReadMessage(file)
 
 	if err != nil {
 		log.Panic(err.Error())
 	}
-
-	fmt.Println(m.Header.Get("Subject"))
 
 	buf := new(strings.Builder)
 
-	_, err = io.Copy(buf, m.Body)
+	_, err = io.Copy(buf, message.Body)
 
 	if err != nil {
 		log.Panic(err.Error())
@@ -38,10 +36,16 @@ func main() {
 
 	body := buf.String()
 
-	scanner := bufio.NewScanner(strings.NewReader(body))
+	var html string = getHtml(body)
+	var event Event = parseEvent(html, message.Header.Get("Subject"))
+	fmt.Println(event)
+}
+
+func getHtml(data string) string {
+	scanner := bufio.NewScanner(strings.NewReader(data))
 
 	var isHtml bool = false
-	var htmlString []string
+	var htmlStrings []string
 	for scanner.Scan() {
 		var line string = scanner.Text()
 
@@ -50,34 +54,39 @@ func main() {
 		}
 
 		if isHtml {
-			htmlString = append(htmlString, line)
+			htmlStrings = append(htmlStrings, line)
 			if strings.TrimRight(line, "\n") == "</html>" {
 				isHtml = false
 			}
 		}
 	}
+	return strings.Join(htmlStrings, "")
+}
 
-	rootNode, _ := html.Parse(strings.NewReader(strings.Join(htmlString, "")))
-
+func parseEvent(rawHtml string, subject string) Event {
+	rootNode, _ := html.Parse(strings.NewReader(rawHtml))
 	var tables []*html.Node = searchHtml(rootNode, "table", []*html.Node{})
-
 	var driverInfoHtml []*html.Node = searchHtml(tables[0], "tr", []*html.Node{})
 
 	var driverInfo DriverInfo = DriverInfo{
 		Name: extractTextIter(driverInfoHtml[3])[1],
 	}
 
-	var raceInfo RaceInfo = RaceInfo{
-		Location: getLocationFromSubject(m),
+	var raceInfo Event = Event{
+		Location: getLocationFromSubject(subject),
 		Position: stripPosition(extractTextIter(driverInfoHtml[4])[2]),
 		RaceType: extractTextIter(driverInfoHtml[6])[1],
 	}
 
-	var raceData []RaceData
-
+	var raceData []DriverTime
+	var firstRow = true
 	for _, row := range searchHtml(tables[2], "tr", []*html.Node{}) {
+		if firstRow == true {
+			firstRow = false
+			continue
+		}
 		if extractTextIter(row)[0] == raceInfo.Position {
-			data := RaceData{
+			data := DriverTime{
 				Pos:    extractTextIter(row)[0],
 				Kart:   extractTextIter(row)[1],
 				Racer:  driverInfo.Name,
@@ -88,7 +97,7 @@ func main() {
 			}
 			raceData = append(raceData, data)
 		} else {
-			data := RaceData{
+			data := DriverTime{
 				Pos:    extractTextIter(row)[0],
 				Kart:   extractTextIter(row)[1],
 				Racer:  extractTextIter(row)[2],
@@ -99,19 +108,14 @@ func main() {
 			}
 			raceData = append(raceData, data)
 		}
-
 	}
+	raceInfo.DriverTimes = raceData
+	raceInfo.DriverInfo = driverInfo
+	return raceInfo
+} 
 
-	fmt.Println(driverInfo)
-	fmt.Println(raceInfo)
-	for _, data := range raceData {
-		fmt.Println(data)
-	}
-}
-
-func getLocationFromSubject(m *mail.Message) string {
-	var subjectLine = m.Header.Get("Subject")
-	if strings.Contains(subjectLine, "Milton Keynes") {
+func getLocationFromSubject(subject string) string {
+	if strings.Contains(subject, "Milton Keynes") {
 		return "Milton Keynes"
 	}
 	return "Unrecognised"
@@ -164,7 +168,7 @@ func stripPosition(position string) string {
 	return position
 }
 
-type RaceData struct {
+type DriverTime struct {
 	Pos    string
 	Kart   string
 	Racer  string
@@ -180,8 +184,10 @@ type DriverInfo struct {
 	RaceType string
 }
 
-type RaceInfo struct {
-	Location string
-	RaceType string
-	Position string
+type Event struct {
+	Location    string
+	RaceType    string
+	Position    string
+	DriverInfo  DriverInfo
+	DriverTimes []DriverTime
 }
