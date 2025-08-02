@@ -7,23 +7,21 @@ package cmd
 import (
 	"fmt"
 	"racer/parser"
-
 	"github.com/spf13/cobra"
 )
 
-// parseCmd represents the parse command
 var parseCmd = &cobra.Command{
 	Use:   "parse",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "Given a Daytona HTML email, prints out the parsed data",
+	Long: "",
 	Run: func(cmd *cobra.Command, args []string) {
-		event := parser.Parse("results/race-result.eml")
-		fmt.Print(event)
+		file := args[0]
+		event := parser.Parse(file)
+		fmt.Println(event.Location)
+		fmt.Println(event.RaceType)
+		for _, row := range event.DriverTimes {
+			fmt.Println(row)
+		} 
 	},
 }
 

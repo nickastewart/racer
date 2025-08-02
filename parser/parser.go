@@ -1,28 +1,30 @@
-package parser 
+package parser
 
 import (
 	"bufio"
+	"bytes"
+	"golang.org/x/net/html"
 	"io"
 	"log"
 	"net/mail"
 	"os"
+	"strconv"
 	"strings"
 	"unicode"
-	"bytes"
-	"golang.org/x/net/html"
+	"racer/model"
 )
 
-func Parse(path string) Event {
+func Parse(path string) model.Event {
 	data, err := os.ReadFile(path)
 
 	if err != nil {
-		log.Panic(err.Error())
+		log.Panic(err)
 	}
 
 	message, err := mail.ReadMessage(bytes.NewReader(data))
 
 	if err != nil {
-		log.Panic(err.Error())
+		log.Panic(err)
 	}
 
 	buf := new(strings.Builder)
@@ -30,13 +32,13 @@ func Parse(path string) Event {
 	_, err = io.Copy(buf, message.Body)
 
 	if err != nil {
-		log.Panic(err.Error())
+		log.Panic(err)
 	}
 
 	body := buf.String()
 
 	var html string = getHtml(body)
-	var event Event = parseEvent(html, message.Header.Get("Subject"))
+	var event model.Event = parseEvent(html, message.Header.Get("Subject"))
 	return event
 }
 
@@ -62,48 +64,49 @@ func getHtml(data string) string {
 	return strings.Join(htmlStrings, "")
 }
 
-func parseEvent(rawHtml string, subject string) Event {
+func parseEvent(rawHtml string, subject string) model.Event {
 	rootNode, _ := html.Parse(strings.NewReader(rawHtml))
 	var tables []*html.Node = searchHtml(rootNode, "table", []*html.Node{})
 	var driverInfoHtml []*html.Node = searchHtml(tables[0], "tr", []*html.Node{})
 
-	var driverInfo DriverInfo = DriverInfo{
+	var driverInfo model.DriverInfo = model.DriverInfo{
 		Name: extractTextIter(driverInfoHtml[3])[1],
 	}
 
-	var raceInfo Event = Event{
+	var raceInfo model.Event = model.Event{
 		Location: getLocationFromSubject(subject),
 		Position: stripPosition(extractTextIter(driverInfoHtml[4])[2]),
 		RaceType: extractTextIter(driverInfoHtml[6])[1],
 	}
 
-	var raceData []DriverTime
+	var raceData []model.DriverTime
 	var firstRow = true
 	for _, row := range searchHtml(tables[2], "tr", []*html.Node{}) {
 		if firstRow == true {
 			firstRow = false
 			continue
 		}
-		if extractTextIter(row)[0] == raceInfo.Position {
-			data := DriverTime{
-				Pos:    extractTextIter(row)[0],
-				Kart:   extractTextIter(row)[1],
+		row := extractTextIter(row)
+		if row[0] == raceInfo.Position {
+			data := model.DriverTime{
+				Pos:    row[0],
+				Kart:   row[1],
 				Racer:  driverInfo.Name,
-				Best:   extractTextIter(row)[2],
-				NoLaps: extractTextIter(row)[3],
-				Avg:    extractTextIter(row)[4],
-				Gap:    extractTextIter(row)[5],
+				Best:   convertFromStringTime(row[2]),
+				NoLaps: row[3],
+				Avg:    convertFromStringTime(row[4]),
+				Gap:    row[5],
 			}
 			raceData = append(raceData, data)
 		} else {
-			data := DriverTime{
-				Pos:    extractTextIter(row)[0],
-				Kart:   extractTextIter(row)[1],
-				Racer:  extractTextIter(row)[2],
-				Best:   extractTextIter(row)[3],
-				NoLaps: extractTextIter(row)[4],
-				Avg:    extractTextIter(row)[5],
-				Gap:    extractTextIter(row)[6],
+			data := model.DriverTime{
+				Pos:    row[0],
+				Kart:   row[1],
+				Racer:  row[2],
+				Best:   convertFromStringTime(row[3]),
+				NoLaps: row[4],
+				Avg:    convertFromStringTime(row[5]),
+				Gap:    row[6],
 			}
 			raceData = append(raceData, data)
 		}
@@ -111,7 +114,7 @@ func parseEvent(rawHtml string, subject string) Event {
 	raceInfo.DriverTimes = raceData
 	raceInfo.DriverInfo = driverInfo
 	return raceInfo
-} 
+}
 
 func getLocationFromSubject(subject string) string {
 	if strings.Contains(subject, "Milton Keynes") {
@@ -125,7 +128,6 @@ func searchHtml(n *html.Node, term string, result []*html.Node) []*html.Node {
 		result = append(result, n)
 	}
 
-	// Recursively visit children
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		result = searchHtml(c, term, result)
 	}
@@ -135,11 +137,9 @@ func searchHtml(n *html.Node, term string, result []*html.Node) []*html.Node {
 
 func extractTextIter(n *html.Node) []string {
 	var data []string
-	// start with just the root
 	stack := []*html.Node{n}
 
 	for len(stack) > 0 {
-		// pop
 		node := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 
@@ -150,12 +150,29 @@ func extractTextIter(n *html.Node) []string {
 			}
 		}
 
-		// push children in reverse so we process them in order
 		for c := node.LastChild; c != nil; c = c.PrevSibling {
 			stack = append(stack, c)
 		}
 	}
 	return data
+}
+
+func convertFromStringTime(time string) int {
+	var parts []string = strings.Split(time, ":")
+	minutes, err := strconv.Atoi(parts[0])
+	if err != nil {
+		log.Panic(err)
+	}
+	seconds, err := strconv.Atoi(parts[1])
+	if err != nil {
+		log.Panic(err)
+	}
+	milli, err := strconv.Atoi(parts[2])
+	if err != nil {
+		log.Panic(err)
+	}
+
+	return (minutes * 60 * 1000) + (seconds * 1000) + milli
 }
 
 func stripPosition(position string) string {
@@ -165,28 +182,4 @@ func stripPosition(position string) string {
 		}
 	}
 	return position
-}
-
-type DriverTime struct {
-	Pos    string
-	Kart   string
-	Racer  string
-	Best   string
-	NoLaps string
-	Avg    string
-	Gap    string
-}
-
-type DriverInfo struct {
-	Name     string
-	Pos      string
-	RaceType string
-}
-
-type Event struct {
-	Location    string
-	RaceType    string
-	Position    string
-	DriverInfo  DriverInfo
-	DriverTimes []DriverTime
 }
