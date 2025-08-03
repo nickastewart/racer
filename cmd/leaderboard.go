@@ -9,25 +9,22 @@ import (
 	"os"
 	"racer/model"
 	"racer/parser"
+	"racer/sort"
 	"slices"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
 
 var driver string
 var competitors []string
+var isMarkdownOutput bool
 
-type Leaderboard struct {
-	Drivertimes []model.DriverTime
-}
-
-// leaderboardCmd represents the leaderboard command
 var leaderboardCmd = &cobra.Command{
 	Use:   "leaderboard",
 	Short: "Displays the leaderboard for a given set of events",
 	Long:  "",
 	Run: func(cmd *cobra.Command, args []string) {
-
 		createLeaderboard()
 	},
 }
@@ -45,6 +42,7 @@ func init() {
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// leaderboardCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	leaderboardCmd.Flags().BoolVarP(&isMarkdownOutput, "markdownOuput", "m", false, "Display Output In Markdown")
 }
 
 func createLeaderboard() {
@@ -55,58 +53,38 @@ func createLeaderboard() {
 		log.Panic(err)
 	}
 
-	var filteredTimes []model.DriverTime = []model.DriverTime{}
+	var rows []model.Row = []model.Row{}
 
 	for _, entry := range entries {
 		event := parser.Parse(baseDir + entry.Name())
 		for _, time := range event.DriverTimes {
 			if time.Racer == driver || slices.Contains(competitors, time.Racer) {
-				filteredTimes = append(filteredTimes, time)
+				rows = append(rows, model.Row{
+					DriverTime: &time,
+					Event:      &event,
+				})
 			}
 		}
 	}
 
-	sort(&filteredTimes)
+	sort.Sort(&rows)
 
-	for _, time := range filteredTimes {
-		fmt.Println(time)
+	var sb strings.Builder
+	sb.WriteString("| Pos | " + rightPad("**Driver**", 24) + " | **Best**   | **Avg**    | **Race Type** \n")
+	for i, row := range rows {
+		sb.WriteString(markDownRow(&row, i))
 	}
-
+	fmt.Print(sb.String())
 }
 
-func sort(unsorted *[]model.DriverTime) {
-	if len(*unsorted) < 2 {
-		return
-	}
-	quicksort(unsorted, 0, len(*unsorted)-1)
+func markDownRow(row *model.Row, pos int) string {
+	return fmt.Sprintf("| %d   | %s | %.3f | %.3f | %s \n",
+		pos, rightPad(row.DriverTime.Racer, 20), float64(row.DriverTime.Best)/1000, float64(row.DriverTime.Avg)/1000, row.Event.RaceType)
 }
 
-func quicksort(unsorted *[]model.DriverTime, p int, r int) {
-	if p < r {
-		q := partition(unsorted, p, r)
-		quicksort(unsorted, p, q-1)
-		quicksort(unsorted, q+1, r)
+func rightPad(s string, n int) string {
+	if len(s) >= n {
+		return s
 	}
-}
-
-func partition(arr *[]model.DriverTime, p int, r int) int {
-	x := &(*arr)[r]
-	i := p - 1
-	j := p
-	
-	for j <= r-1 {
-		if (*arr)[j].Best <= (*x).Best {
-			i++
-			temp := (*arr)[j]
-			(*arr)[j] = (*arr)[i]
-			(*arr)[i] = temp 
-		}
-		j++
-	}
-
-	temp := (*arr)[i+1]
-	(*arr)[i+1] = (*arr)[j]
-	(*arr)[j] = temp
-	
-	return i+1
+	return s + strings.Repeat(" ", n-len(s))
 }

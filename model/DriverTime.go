@@ -1,4 +1,4 @@
-package model 
+package model
 
 type DriverTime struct {
 	Pos    string
@@ -6,6 +6,6 @@ type DriverTime struct {
 	Racer  string
 	Best   int
 	NoLaps string
-	Avg    int 
+	Avg    int
 	Gap    string
 }
