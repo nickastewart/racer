@@ -38,7 +38,7 @@ func Parse(path string) model.Event {
 	body := buf.String()
 
 	var html string = getHtml(body)
-	var event model.Event = parseEvent(html, message.Header.Get("Subject"))
+	var event model.Event = parseEvent(html, message.Header.Get("Subject"), message.Header.Get("Date"))
 	return event
 }
 
@@ -64,7 +64,7 @@ func getHtml(data string) string {
 	return strings.Join(htmlStrings, "")
 }
 
-func parseEvent(rawHtml string, subject string) model.Event {
+func parseEvent(rawHtml string, subject string, date string) model.Event {
 	rootNode, _ := html.Parse(strings.NewReader(rawHtml))
 	var tables []*html.Node = searchHtml(rootNode, "table", []*html.Node{})
 	var driverInfoHtml []*html.Node = searchHtml(tables[0], "tr", []*html.Node{})
@@ -74,6 +74,7 @@ func parseEvent(rawHtml string, subject string) model.Event {
 	}
 
 	var raceInfo model.Event = model.Event{
+		Date	: stripTime(date),
 		Location: getLocationFromSubject(subject),
 		Position: stripPosition(extractTextIter(driverInfoHtml[4])[2]),
 		RaceType: extractTextIter(driverInfoHtml[6])[1],
@@ -114,6 +115,10 @@ func parseEvent(rawHtml string, subject string) model.Event {
 	raceInfo.DriverTimes = raceData
 	raceInfo.DriverInfo = driverInfo
 	return raceInfo
+}
+
+func stripTime(date string) string {
+	return date[0:12]
 }
 
 func getLocationFromSubject(subject string) string {

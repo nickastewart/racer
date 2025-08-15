@@ -1,6 +1,7 @@
 package model 
 
 type Event struct {
+	Date		string
 	Location    string
 	RaceType    string
 	Position    string

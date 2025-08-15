@@ -70,7 +70,7 @@ func createLeaderboard() {
 	sort.Sort(&rows)
 
 	var sb strings.Builder
-	sb.WriteString("| Pos | " + rightPad("**Driver**", 24) + " | **Best**   | **Avg**    | **Race Type** \n")
+	sb.WriteString("| Pos | " + rightPad("**Driver**", 24) + " | **Best**   | **Avg**    | "+rightPad("**Race Type**", 34)+" | **Date** \n")
 	for i, row := range rows {
 		sb.WriteString(markDownRow(&row, i))
 	}
@@ -78,8 +78,13 @@ func createLeaderboard() {
 }
 
 func markDownRow(row *model.Row, pos int) string {
-	return fmt.Sprintf("| %d   | %s | %.3f | %.3f | %s \n",
-		pos, rightPad(row.DriverTime.Racer, 20), float64(row.DriverTime.Best)/1000, float64(row.DriverTime.Avg)/1000, row.Event.RaceType)
+	return fmt.Sprintf("| %d   | %s | %.3f | %.3f | %s | %s \n",
+		pos, 
+		rightPad(row.DriverTime.Racer, 20),
+		float64(row.DriverTime.Best)/1000,
+		float64(row.DriverTime.Avg)/1000,
+		rightPad(row.Event.RaceType, 30),
+		row.Event.Date)
 }
 
 func rightPad(s string, n int) string {
